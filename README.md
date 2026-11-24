@@ -526,7 +526,7 @@ Contributions are welcome, keeping the project's goal of **small and lightweight
 
 ## License
 
-**No license has been specified yet.** The repository does not contain a `LICENSE` file. Until the owner adds one, the default is that all rights are reserved, even though the code is publicly visible.
+DeskCat is released under the [MIT License](LICENSE).
 
 ## Acknowledgements
 
