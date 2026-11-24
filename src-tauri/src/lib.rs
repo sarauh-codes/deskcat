@@ -42,7 +42,7 @@ fn yes() -> bool {
 struct Store {
     save: Mutex<Save>,
     path: PathBuf,
-    gen: AtomicU64,
+    seq: AtomicU64,
 }
 impl Store {
     fn flush(&self) {
@@ -167,11 +167,11 @@ pub fn run() {
             if let Some(c) = st.save.lock().unwrap().cats.iter_mut().find(|c| c.id == id) {
                 (c.x, c.y) = (p.x, p.y);
             }
-            let g = st.gen.fetch_add(1, Ordering::SeqCst) + 1;
+            let g = st.seq.fetch_add(1, Ordering::SeqCst) + 1;
             std::thread::spawn(move || {
                 std::thread::sleep(Duration::from_millis(500));
                 let st = app.state::<Store>();
-                if st.gen.load(Ordering::SeqCst) == g {
+                if st.seq.load(Ordering::SeqCst) == g {
                     st.flush();
                 }
             });
@@ -191,7 +191,7 @@ pub fn run() {
                 }
             }
             let (cats, on_top) = (save.cats.clone(), save.always_on_top);
-            app.manage(Store { save: Mutex::new(save), path, gen: AtomicU64::new(0) });
+            app.manage(Store { save: Mutex::new(save), path, seq: AtomicU64::new(0) });
             for c in &cats {
                 spawn(&h, c)?;
             }
