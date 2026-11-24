@@ -16,7 +16,7 @@
 
 </div>
 
-> **Project status — please read.** The MVP described below is **written and builds successfully in CI**, but it has **not yet been launched and verified on a real desktop**. Everything marked *Implemented* means "the code exists in this repository", not "tested and confirmed working". See [Known Limitations](#known-limitations).
+> **Project status — please read.** The MVP described below is **written and builds successfully in CI**, It has been **smoke-tested on Windows 11**: the CI-built `deskcat.exe` launches, stays running, and shows the cat with its tray icon. Full behaviour (drag, petting, tray menu, installer, long-running use) is **not yet verified**. Everything marked *Implemented* means "the code exists in this repository", not "tested and confirmed working". See [Known Limitations](#known-limitations).
 
 ## Table of Contents
 
@@ -471,8 +471,9 @@ Checked means "present in the code". A check does **not** mean verified on a des
 - [x] Add and remove cats
 - [x] Cats and positions persist after restart
 - [x] Windows installer builds in CI
-- [ ] Launch and verify everything on a real Windows desktop (**next step**)
-- [ ] Windows build "launches and behaves reliably" (acceptance criterion; unverified)
+- [x] Windows build launches (smoke test on Windows 11: runs, shows cat and tray icon)
+- [ ] Verify everything on a real Windows desktop: drag, petting, tray menu, installer (**next step**)
+- [ ] Windows build "behaves reliably" over normal use (unverified)
 - [ ] Optional sound effects and mute setting
 - [ ] Multi-monitor testing
 
