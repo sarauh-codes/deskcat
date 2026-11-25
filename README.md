@@ -7,7 +7,7 @@
 [![build](https://github.com/sarauh-codes/deskcat/actions/workflows/build.yml/badge.svg)](https://github.com/sarauh-codes/deskcat/actions/workflows/build.yml)
 ![Platform](https://img.shields.io/badge/platform-Windows-blue)
 ![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB)
-![Status](https://img.shields.io/badge/status-MVP%20%E2%80%93%20awaiting%20first%20desktop%20test-orange)
+![Status](https://img.shields.io/badge/status-MVP%20%E2%80%93%20smoke--tested%20on%20Windows%2011-yellow)
 
 <img src="public/assets/cats/orange/sitting.png" width="128" alt="Orange cat sitting" />
 <img src="public/assets/cats/black/sitting.png" width="128" alt="Black cat sitting" />
@@ -16,7 +16,7 @@
 
 </div>
 
-> **Project status — please read.** The MVP described below is **written and builds successfully in CI**, It has been **smoke-tested on Windows 11**: the CI-built `deskcat.exe` launches, stays running, and shows the cat with its tray icon. Full behaviour (drag, petting, tray menu, installer, long-running use) is **not yet verified**. Everything marked *Implemented* means "the code exists in this repository", not "tested and confirmed working". See [Known Limitations](#known-limitations).
+> **Project status — please read.** The MVP described below is **written and builds successfully in CI**. It has been **smoke-tested on Windows 11**: the CI-built `deskcat.exe` launches, stays running, and shows the cat with its tray icon. Full behaviour (drag, petting, tray menu, installer, long-running use) is **not yet verified**. Everything marked *Implemented* means "the code exists in this repository", not "tested and confirmed working". See [Known Limitations](#known-limitations).
 
 ## Table of Contents
 
@@ -73,7 +73,7 @@ DeskCat is a desktop pet. Each cat is its own transparent native window showing 
 
 | Label | Meaning |
 |---|---|
-| ✅ **Implemented** | Code for it exists in this repo and compiles in CI. *Not yet verified on a real desktop.* |
+| ✅ **Implemented** | Code for it exists in this repo and compiles in CI. *Not every feature has been verified on a desktop.* |
 | 🗓️ **Planned** | Part of the original MVP scope, but not implemented. |
 | 💡 **Future** | Mentioned as a possible later idea only. |
 
@@ -330,7 +330,7 @@ Hand-drawn art can be used instead: provide the five sheets with the same frame 
 - **Settings interface:** the system tray menu only. There is no settings panel.
 - **Other open windows:** cats float above other windows when *Always on top* is on (the default). They are not shown over exclusive-fullscreen games.
 
-No screenshots are included yet because the app has not been run on a desktop.
+No screenshots are included yet.
 
 ## Project Structure
 
@@ -411,7 +411,7 @@ The `build` workflow runs on every push. Open the latest successful run under **
 
 ## Usage Guide
 
-> Steps below describe the intended behaviour of the current code. They have **not** been verified on a real desktop yet.
+> Steps below describe the intended behaviour of the current code. The app launches on Windows 11, but these steps have **not** each been verified yet.
 
 | Task | How |
 |---|---|
@@ -430,7 +430,7 @@ The `build` workflow runs on every push. Open the latest successful run under **
 
 ## Data Storage and Privacy
 
-- **Where:** a single file, `deskcat.json`, in the Tauri app data directory for the identifier `com.deskcat.app`. On Windows this is expected to be `%APPDATA%\com.deskcat.app\deskcat.json` (not yet confirmed by running the app).
+- **Where:** a single file, `deskcat.json`, in the Tauri app data directory for the identifier `com.deskcat.app`. On Windows this is expected to be `%APPDATA%\com.deskcat.app\deskcat.json` (the path has not yet been confirmed on disk).
 - **What is stored:** for each cat its ID, name, skin and X/Y position (physical screen pixels), plus the *Always on top* preference. Nothing else is written by DeskCat.
 - **When it is written:** immediately on rename, skin change, add, remove and setting changes; for dragging, once the cat has stopped moving for 500 ms, and again on Quit.
 - **Internet:** the DeskCat code contains no network calls and needs no connection to run. (Installing dependencies and building from source do need the internet.)
@@ -455,7 +455,7 @@ The original [`PROJECT_OVERVIEW.md`](PROJECT_OVERVIEW.md) is still the statement
 
 ## Development Roadmap
 
-Checked means "present in the code". A check does **not** mean verified on a desktop; the last MVP item covers that.
+Checked means "present in the code". A check does **not** mean verified on a desktop; the unchecked verification items cover that.
 
 ### MVP
 
@@ -479,7 +479,7 @@ Checked means "present in the code". A check does **not** mean verified on a des
 
 ### Short-term improvements
 
-- [ ] Fix whatever the first desktop test finds (drag feel, shadows, sprite sharpness at different display scales)
+- [ ] Fix whatever fuller desktop testing finds (drag feel, shadows, sprite sharpness at different display scales)
 - [ ] Add screenshots or a short demo GIF to this README
 - [ ] Stretching and Playing animations
 - [ ] Pixel-styled menus
@@ -498,7 +498,7 @@ Checked means "present in the code". A check does **not** mean verified on a des
 
 ## Known Limitations
 
-- **Not yet run on a desktop.** Transparent-window, drag and tray behaviour are untested.
+- **Only smoke-tested.** Launch, the cat and the tray icon were confirmed on Windows 11; drag, petting, menus, the installer and long-running use are not yet verified.
 - **Transparent corners still catch clicks.** Each 160×160 window is rectangular, so clicking the transparent area around the sprite does not reach the app underneath.
 - **Not shown over exclusive-fullscreen games**, even with *Always on top*.
 - **Unsigned installer**: SmartScreen warns on first run.
