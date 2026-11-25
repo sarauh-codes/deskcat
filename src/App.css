@@ -1,4 +1,4 @@
-/* The window is 160x160 logical px (WIN in src-tauri/src/lib.rs): 32px name row + 128px sprite. */
+/* Window = 32px name row + sprite; sizes come from win_size() in src-tauri/src/lib.rs. */
 html, body, #root {
   margin: 0;
   height: 100%;
@@ -19,7 +19,7 @@ html, body, #root {
 .name {
   height: 32px;
   box-sizing: border-box;
-  max-width: 150px;
+  max-width: calc(100% - 10px);
   padding-top: 10px;
   color: #fff;
   text-align: center;
@@ -43,7 +43,7 @@ input.name {
   padding: 4px 6px;
   height: 22px;
   margin-top: 6px;
-  width: 120px;
+  width: 110px;
   border: 2px solid #222;
   border-radius: 0;
   background: #fff;
@@ -55,8 +55,7 @@ input.name {
 }
 
 .sprite {
-  width: 128px;
-  height: 128px;
+  flex: none;
   background-repeat: no-repeat;
   image-rendering: pixelated;
   cursor: grab;

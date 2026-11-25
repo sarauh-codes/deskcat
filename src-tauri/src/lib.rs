@@ -11,13 +11,27 @@ use std::{
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Emitter, Manager, PhysicalPosition, RunEvent, State, WebviewUrl, WebviewWindowBuilder,
+    AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, RunEvent, State, WebviewUrl, WebviewWindowBuilder,
     WindowEvent,
 };
 
 const SKINS: [&str; 7] = ["orange", "black", "white", "calico", "gray", "cream", "tortoiseshell"];
 const NAMES: [&str; 6] = ["Mochi", "Miso", "Tofu", "Boba", "Kiki", "Nori"];
-const WIN: f64 = 160.0; // logical px; must match the CSS layout in src/App.css
+const SIZES: [&str; 3] = ["kitten", "teen", "adult"];
+const WIN: f64 = 160.0; // adult window, logical px
+
+// Window per size: a 32px name row above the sprite (sprite px must match SIZES in src/data/cats.ts).
+fn win_size(size: &str) -> (f64, f64) {
+    let sprite: f64 = match size {
+        "kitten" => 64.0,
+        "teen" => 96.0,
+        _ => 128.0,
+    };
+    ((sprite + 32.0).max(128.0), sprite + 32.0)
+}
+fn adult() -> String {
+    "adult".into()
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 struct Cat {
@@ -26,6 +40,22 @@ struct Cat {
     skin: String,
     x: i32, // physical px
     y: i32,
+    #[serde(default = "adult")] // saves from before sizes existed must still load
+    size: String,
+}
+impl Cat {
+    // bottom-centre of the window ("feet"), physical px
+    fn feet(&self, scale: f64) -> (f64, f64) {
+        let (w, h) = win_size(&self.size);
+        (f64::from(self.x) + w * scale / 2.0, f64::from(self.y) + h * scale)
+    }
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Meet {
+    other_is_left: bool,
+    fight: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -73,10 +103,11 @@ fn default_pos(app: &AppHandle, n: usize) -> (i32, i32) {
 }
 
 // A saved spot only counts if the cat's centre is still on some connected monitor.
-fn on_screen(app: &AppHandle, x: i32, y: i32) -> bool {
+fn on_screen(app: &AppHandle, c: &Cat) -> bool {
+    let ((w, h), x, y) = (win_size(&c.size), c.x, c.y);
     app.available_monitors().unwrap_or_default().iter().any(|m| {
         let (p, s) = (m.position(), m.size());
-        let (cx, cy) = (x + (WIN * m.scale_factor() / 2.0) as i32, y + (WIN * m.scale_factor() / 2.0) as i32);
+        let (cx, cy) = (x + (w * m.scale_factor() / 2.0) as i32, y + (h * m.scale_factor() / 2.0) as i32);
         cx >= p.x && cx < p.x + s.width as i32 && cy >= p.y && cy < p.y + s.height as i32
     })
 }
@@ -85,7 +116,7 @@ fn spawn(app: &AppHandle, cat: &Cat) -> tauri::Result<()> {
     let top = app.state::<Store>().save.lock().unwrap().always_on_top;
     let w = WebviewWindowBuilder::new(app, format!("cat-{}", cat.id), WebviewUrl::App("index.html".into()))
         .title(&cat.name)
-        .inner_size(WIN, WIN)
+        .inner_size(win_size(&cat.size).0, win_size(&cat.size).1)
         .decorations(false)
         .transparent(true)
         .shadow(false)
@@ -106,7 +137,7 @@ fn new_cat(app: &AppHandle) -> tauri::Result<()> {
         let n = s.cats.len();
         let (x, y) = default_pos(app, n);
         let id = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis().to_string();
-        let cat = Cat { id, name: NAMES[n % NAMES.len()].into(), skin: SKINS[n % SKINS.len()].into(), x, y };
+        let cat = Cat { id, name: NAMES[n % NAMES.len()].into(), skin: SKINS[n % SKINS.len()].into(), x, y, size: adult() };
         s.cats.push(cat.clone());
         cat
     };
@@ -132,6 +163,24 @@ fn set_skin(id: String, skin: String, st: State<Store>) {
     if SKINS.contains(&skin.as_str()) {
         st.edit(&id, |c| c.skin = skin);
     }
+}
+
+// Resize in place, keeping the cat's feet where they were.
+#[tauri::command]
+fn set_size(app: AppHandle, id: String, size: String) -> Result<(), String> {
+    if !SIZES.contains(&size.as_str()) {
+        return Ok(());
+    }
+    let st = app.state::<Store>();
+    let old = st.save.lock().unwrap().cats.iter().find(|c| c.id == id).map(|c| c.size.clone());
+    let (Some(old), Some(w)) = (old, app.get_webview_window(&format!("cat-{id}"))) else { return Ok(()) };
+    let ((w0, h0), (w1, h1)) = (win_size(&old), win_size(&size));
+    st.edit(&id, |c| c.size = size);
+    let err = |e: tauri::Error| e.to_string();
+    let (s, p) = (w.scale_factor().map_err(err)?, w.outer_position().map_err(err)?);
+    w.set_size(LogicalSize::new(w1, h1)).map_err(err)?;
+    let to = PhysicalPosition::new(p.x + ((w0 - w1) / 2.0 * s) as i32, p.y + ((h0 - h1) * s) as i32);
+    w.set_position(to).map_err(err)
 }
 
 // async: creating/closing windows from a sync command deadlocks on Windows.
@@ -164,23 +213,30 @@ pub fn run() {
             }
             let app = window.app_handle().clone();
             let st = app.state::<Store>();
-            // cats whose windows are about this close say hello (the frontend rate-limits it)
-            let near = WIN * window.scale_factor().unwrap_or(1.0) * 1.25;
-            let neighbours: Vec<(String, i32)> = {
+            // Cats that get close meet (the frontend rate-limits it); roughly one meeting in four is a fight.
+            let scale = window.scale_factor().unwrap_or(1.0);
+            let mut meetings = Vec::new();
+            {
                 let mut s = st.save.lock().unwrap();
                 if let Some(c) = s.cats.iter_mut().find(|c| c.id == id) {
                     (c.x, c.y) = (p.x, p.y);
                 }
-                s.cats
-                    .iter()
-                    .filter(|c| c.id != id && f64::from(c.x - p.x).hypot(f64::from(c.y - p.y)) < near)
-                    .map(|c| (c.id.clone(), c.x))
-                    .collect()
-            };
-            for (other, x) in neighbours {
-                // payload: "the other cat is on your left"
-                let _ = app.emit_to(format!("cat-{id}"), "greet", x < p.x);
-                let _ = app.emit_to(format!("cat-{other}"), "greet", p.x < x);
+                if let Some(me) = s.cats.iter().find(|c| c.id == id) {
+                    let (mx, my) = me.feet(scale);
+                    for other in s.cats.iter().filter(|c| c.id != id) {
+                        let (ox, oy) = other.feet(scale);
+                        let near = (win_size(&me.size).0 + win_size(&other.size).0) / 2.0 * scale * 1.25;
+                        if (ox - mx).hypot(oy - my) < near {
+                            meetings.push((other.id.clone(), ox < mx));
+                        }
+                    }
+                }
+            }
+            for (other, other_is_left) in meetings {
+                // both cats get the same verdict so they never disagree about fighting
+                let fight = SystemTime::now().duration_since(UNIX_EPOCH).map_or(false, |t| t.as_micros() % 4 == 0);
+                let _ = app.emit_to(format!("cat-{id}"), "meet", Meet { other_is_left, fight });
+                let _ = app.emit_to(format!("cat-{other}"), "meet", Meet { other_is_left: !other_is_left, fight });
             }
             let g = st.seq.fetch_add(1, Ordering::SeqCst) + 1;
             std::thread::spawn(move || {
@@ -191,7 +247,7 @@ pub fn run() {
                 }
             });
         })
-        .invoke_handler(tauri::generate_handler![get_cat, rename_cat, set_skin, add_cat, remove_cat])
+        .invoke_handler(tauri::generate_handler![get_cat, rename_cat, set_skin, set_size, add_cat, remove_cat])
         .setup(|app| {
             let h = app.handle().clone();
             let dir = app.path().app_data_dir()?;
@@ -201,7 +257,7 @@ pub fn run() {
             let first_run = loaded.is_none();
             let mut save = loaded.unwrap_or(Save { cats: vec![], always_on_top: true });
             for (i, c) in save.cats.iter_mut().enumerate() {
-                if !on_screen(&h, c.x, c.y) {
+                if !on_screen(&h, c) {
                     (c.x, c.y) = default_pos(&h, i);
                 }
             }

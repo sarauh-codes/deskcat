@@ -89,7 +89,24 @@ function playing(c, i) {
   return f;
 }
 
+// arched back, puffed tail, swiping paw
+function fighting(c, i) {
+  const m = mk(), { P, R } = m, b = i % 2;
+  R(2, 9 - b, 5, 12, c.b); R(4, 20, 3, 2, c.b);
+  R(6, 17, 16, 7, c.b); R(8, 14 - b, 10, 4, c.b); R(6, 22, 16, 2, c.s);
+  if (c.stripe) [9, 12, 15].forEach((x) => R(x, 15 - b, 1, 4, c.s));
+  [7, 10, 17, 20].forEach((x) => { R(x, 24, 2, 6, c.b); R(x, 29, 2, 1, c.l); });
+  const hx = 19 + b;
+  R(hx, 14, 9, 8, c.b); R(hx - 1, 13, 3, 2, c.b); R(hx + 6, 12, 2, 3, c.b); P(hx + 7, 13, I);
+  P(hx + 4, 16, c.e ?? E); R(hx + 5, 17, 2, 1, c.e ?? E);
+  R(hx + 5, 19, 4, 3, c.l); P(hx + 8, 19, N); R(hx + 6, 21, 3, 1, "#8a2b35");
+  if (b) { R(27, 24, 4, 2, c.b); R(30, 26, 1, 1, c.l); }
+  (b ? [[30, 9], [29, 10], [31, 12], [30, 13]] : [[31, 8], [28, 9], [30, 11]]).forEach(([x, y]) => P(x, y, "#ffd23f"));
+  return finish(m, c);
+}
+
 const ANIMS = {
+  fighting: [0, 1, 2, 3].map((i) => (c) => fighting(c, i)),
   playing: [0, 1, 2, 3].map((i) => (c) => playing(c, i)),
   idle: [{}, { tail: 1 }, { blink: true }, { tail: 1 }].map((o) => (c) => standing(c, o)),
   sitting: [{}, { tail: 1, blink: true }].map((o) => (c) => sitting(c, o)),

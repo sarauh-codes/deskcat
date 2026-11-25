@@ -2,17 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Menu } from "@tauri-apps/api/menu";
 import { currentMonitor, getCurrentWindow, PhysicalPosition } from "@tauri-apps/api/window";
-import { ANIMS, Anim, Cat, SKINS, sheetUrl } from "./data/cats";
+import { ANIMS, Anim, Cat, SIZES, SKINS, Size, sheetUrl } from "./data/cats";
 import "./App.css";
 
-const SIZE = 128; // 32px sprite x4: integer device pixels at 100/125/150/175/200% scaling
 const win = getCurrentWindow();
 const id = win.label.replace(/^cat-/, "");
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 // weighted by repetition
 const MOODS: Anim[] = ["idle", "idle", "sitting", "sitting", "sleeping", "walking", "walking", "playing"];
 const GREETINGS = ["Hi! 👋", "Hello!", "Meow!", "😺", "❤️"];
-const GREET_COOLDOWN = 20_000;
+const HISSES = ["Hiss!", "Grr!", "💢", "😾"];
+const MEET_COOLDOWN = 20_000;
+const pick = <T,>(list: T[]) => list[Math.floor(Math.random() * list.length)];
 
 function useFrame(anim: Anim, onEnd: () => void) {
   const [frame, setFrame] = useState(0);
@@ -46,18 +47,19 @@ export default function App() {
   const animRef = useRef(anim);
   animRef.current = anim;
 
-  // Rust sends "greet" while another cat is close; the payload says whether that cat is on our left.
+  // Rust sends "meet" while another cat is close, and decides whether the two greet or fight.
   useEffect(() => {
     let last = 0;
     const timers: number[] = [];
-    const unlisten = win.listen<boolean>("greet", ({ payload: otherIsLeft }) => {
-      if (animRef.current === "sleeping" || Date.now() - last < GREET_COOLDOWN) return;
+    const unlisten = win.listen<{ otherIsLeft: boolean; fight: boolean }>("meet", ({ payload }) => {
+      if (animRef.current === "sleeping" || Date.now() - last < MEET_COOLDOWN) return;
       last = Date.now();
-      setAnim((a) => (a === "walking" ? "sitting" : a));
+      const { otherIsLeft, fight } = payload;
+      setAnim((a) => (fight ? "fighting" : a === "walking" ? "sitting" : a));
       setFlip(otherIsLeft);
       // random delay so the two cats don't speak in unison
-      const delay = Math.random() * 900;
-      const text = GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
+      const delay = fight ? 0 : Math.random() * 900;
+      const text = pick(fight ? HISSES : GREETINGS);
       timers.push(window.setTimeout(() => setBubble(text), delay));
       timers.push(window.setTimeout(() => setBubble(""), delay + 2500));
     });
@@ -68,8 +70,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (anim !== "playing") return;
-    const t = setTimeout(() => setAnim("idle"), 3000);
+    if (anim !== "playing" && anim !== "fighting") return;
+    const t = setTimeout(() => setAnim("idle"), anim === "playing" ? 3000 : 2500);
     return () => clearTimeout(t);
   }, [anim]);
 
@@ -87,8 +89,8 @@ export default function App() {
     let t: number;
     const next = () => {
       t = window.setTimeout(() => {
-        const mood = MOODS[Math.floor(Math.random() * MOODS.length)];
-        setAnim((a) => (a === "petting" || a === "walking" || a === "playing" ? a : mood));
+        const mood = pick(MOODS);
+        setAnim((a) => (["petting", "walking", "playing", "fighting"].includes(a) ? a : mood));
         next();
       }, 5000 + Math.random() * 7000);
     };
@@ -136,6 +138,10 @@ export default function App() {
     invoke("set_skin", { id, skin });
     setCat({ ...cat, skin });
   };
+  const changeSize = (size: Size) => {
+    invoke("set_size", { id, size });
+    setCat({ ...cat, size });
+  };
   const commitName = (raw: string) => {
     setRenaming(false);
     const name = raw.trim();
@@ -175,6 +181,13 @@ export default function App() {
           text: "Change appearance",
           items: SKINS.map((s) => ({ text: (s === cat.skin ? "• " : "") + cap(s), action: () => changeSkin(s) })),
         },
+        {
+          text: "Size",
+          items: (Object.keys(SIZES) as Size[]).map((s) => ({
+            text: (s === cat.size ? "• " : "") + SIZES[s].label,
+            action: () => changeSize(s),
+          })),
+        },
         { text: "Add another cat", action: () => invoke("add_cat") },
         { text: "Remove cat", action: () => invoke("remove_cat", { id }) },
       ],
@@ -183,6 +196,7 @@ export default function App() {
   };
 
   const { frames } = ANIMS[anim];
+  const px = SIZES[cat.size].px;
   return (
     <div className="cat" onContextMenu={onContextMenu}>
       {renaming ? (
@@ -207,9 +221,11 @@ export default function App() {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         style={{
+          width: px,
+          height: px,
           backgroundImage: `url(${sheetUrl(cat.skin, anim)})`,
-          backgroundSize: `${frames * SIZE}px ${SIZE}px`,
-          backgroundPosition: `-${frame * SIZE}px 0`,
+          backgroundSize: `${frames * px}px ${px}px`,
+          backgroundPosition: `-${frame * px}px 0`,
           transform: flip ? "scaleX(-1)" : undefined,
         }}
       />
