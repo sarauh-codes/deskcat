@@ -9,6 +9,15 @@ const SKINS = {
   orange: { b: "#e8914a", s: "#c06a2c", l: "#f8cf9c", stripe: true },
   black: { b: "#3a3a46", s: "#24242e", l: "#5a5a68" },
   white: { b: "#f2f2f4", s: "#cfcfd8", l: "#ffffff" },
+  gray: { b: "#8d929e", s: "#666b78", l: "#c3c7cf", stripe: true },
+  cream: { b: "#f0d6a8", s: "#d4b17c", l: "#fff0d4", stripe: true },
+  tortoiseshell: {
+    e: "#f2d14a", b: "#4a3328", s: "#2e1f19", l: "#c98a52",
+    patches: [
+      [6, 17, 3, 4, "#c9702e"], [11, 15, 3, 3, "#1f1714"], [13, 20, 4, 4, "#c9702e"], [17, 17, 3, 3, "#1f1714"],
+      [8, 24, 3, 4, "#c9702e"], [19, 6, 3, 4, "#c9702e"], [24, 11, 3, 3, "#c9702e"], [23, 18, 3, 4, "#c9702e"],
+    ],
+  },
   // patches recolour only body-coloured pixels inside the rect: [x, y, w, h, colour]
   calico: {
     b: "#f2f2f4", s: "#cfcfd8", l: "#ffffff",
@@ -41,7 +50,7 @@ function standing(c, { bob = 0, lift = [0, 0, 0, 0], blink = false, tail = 0 }) 
   R(20, 10 + bob, 9, 8, c.b);
   R(20, 8 + bob, 2, 3, c.b); R(27, 8 + bob, 2, 3, c.b); P(21, 9 + bob, I); P(27, 9 + bob, I);
   R(25, 15 + bob, 4, 3, c.l); P(28, 15 + bob, N);
-  blink ? R(25, 13 + bob, 2, 1, E) : R(25, 12 + bob, 2, 2, E);
+  blink ? R(25, 13 + bob, 2, 1, c.e ?? E) : R(25, 12 + bob, 2, 2, c.e ?? E);
   return finish(m, c);
 }
 
@@ -53,9 +62,9 @@ function sitting(c, { tail = 0, blink = false, happy = false, heartY = null }) {
   R(17, 14, 7, 3, c.b); R(16, 6, 10, 9, c.b);
   R(16, 4, 2, 3, c.b); R(23, 4, 2, 3, c.b); P(17, 5, I); P(24, 5, I);
   R(22, 10, 4, 3, c.l); P(25, 10, N);
-  if (happy) { P(21, 9, E); P(22, 8, E); P(23, 9, E); }
-  else if (blink) R(21, 9, 3, 1, E);
-  else R(21, 8, 2, 2, E);
+  if (happy) { P(21, 9, c.e ?? E); P(22, 8, c.e ?? E); P(23, 9, c.e ?? E); }
+  else if (blink) R(21, 9, 3, 1, c.e ?? E);
+  else R(21, 8, 2, 2, c.e ?? E);
   if (heartY !== null) heart(P, 26, heartY);
   return finish(m, c);
 }
@@ -67,12 +76,21 @@ function sleeping(c, { up = 0, z = 0 }) {
   if (c.stripe) [9, 12, 15].forEach((x) => R(x, 20 - up, 1, 3, c.s));
   R(20, 18, 9, 10, c.b);
   R(20, 16, 2, 3, c.b); R(27, 16, 2, 3, c.b); P(21, 17, I); P(27, 17, I);
-  R(24, 22, 3, 1, E); R(25, 24, 4, 3, c.l); P(28, 24, N);
+  R(24, 22, 3, 1, c.e ?? E); R(25, 24, 4, 3, c.l); P(28, 24, N);
   zed(P, 23, 11); if (z) zed(P, 26, 6);
   return finish(m, c);
 }
 
+// standing cat batting a yarn ball back and forth
+function playing(c, i) {
+  const f = standing(c, { bob: (i + 1) % 2, lift: [[0, 0, 0, 3], [0, 0, 0, 0], [0, 0, 3, 0], [0, 0, 0, 0]][i], tail: i % 2 });
+  [".XX.", "XoXX", "XXXX", ".XX."].forEach((row, j) =>
+    [...row].forEach((ch, k) => { if (ch !== ".") f[(26 + j) * S + [24, 26, 28, 26][i] + k] = ch === "o" ? "#ffc2c8" : "#e0525c"; }));
+  return f;
+}
+
 const ANIMS = {
+  playing: [0, 1, 2, 3].map((i) => (c) => playing(c, i)),
   idle: [{}, { tail: 1 }, { blink: true }, { tail: 1 }].map((o) => (c) => standing(c, o)),
   sitting: [{}, { tail: 1, blink: true }].map((o) => (c) => sitting(c, o)),
   sleeping: [{ up: 0, z: 0 }, { up: 1, z: 1 }].map((o) => (c) => sleeping(c, o)),

@@ -29,6 +29,16 @@ html, body, #root {
   text-shadow: -1px 0 #222, 1px 0 #222, 0 -1px #222, 0 1px #222;
 }
 
+.name.bubble {
+  height: 24px;
+  margin: 4px 0;
+  padding: 4px 8px;
+  border: 2px solid #222;
+  background: #fff;
+  color: #222;
+  text-shadow: none;
+}
+
 input.name {
   padding: 4px 6px;
   height: 22px;

@@ -62,7 +62,7 @@ DeskCat is a small, charming companion for the hours you spend working, studying
 
 DeskCat is a desktop pet. Each cat is its own transparent native window showing a pixel-art sprite. The cat idles, sits, sleeps, occasionally walks along the bottom of its monitor, and reacts when clicked.
 
-- **Interacting:** click a cat to pet it; press-and-drag to move it; right-click for a menu (pet, rename, change appearance, add another cat, remove).
+- **Interacting:** click a cat to pet it (sometimes it plays instead); press-and-drag to move it; cats that get close greet each other; right-click for a menu (pet, play, rename, change appearance, add another cat, remove).
 - **Multiple cats:** every cat has its own ID, name, skin, and position, and its own window. Add as many as you like from the cat menu or the tray.
 - **Alongside other applications:** cats float over other windows by default (**Always on top** can be toggled from the tray). They have no taskbar button. Clicks on the cat's own window go to the cat; the rest of the screen is unaffected because each window is only 160×160 logical pixels.
 - **Intended experience:** a quiet companion that is there when you glance at the desktop, never in the way, and costs little to run.
@@ -92,18 +92,18 @@ DeskCat is a desktop pet. Each cat is its own transparent native window showing 
 
 | Feature | Status |
 |---|---|
-| Click a cat to pet it (petting animation) | ✅ Implemented |
+| Click a cat to pet it (about 30% of clicks start playing instead) | ✅ Implemented |
 | Press-and-drag a cat to move it | ✅ Implemented |
-| Right-click context menu: Pet, Rename, Change appearance, Add another cat, Remove cat | ✅ Implemented |
+| Right-click context menu: Pet, Play, Rename, Change appearance, Add another cat, Remove cat | ✅ Implemented |
 | Optional meow / interaction sound with a mute setting | 🗓️ Planned (optional in the overview, not implemented) |
 | Cats following or chasing the cursor | 💡 Future |
-| Cat-to-cat interactions | 💡 Future (explicitly out of MVP scope) |
+| Cats close to each other greet with a speech bubble | ✅ Implemented (added after the MVP; the overview had it out of scope) |
 
 ### Cat customisation
 
 | Feature | Status |
 |---|---|
-| Four predefined skins: orange, black, white, calico | ✅ Implemented |
+| Seven predefined skins: orange, black, white, calico, gray, cream, tortoiseshell | ✅ Implemented |
 | Rename a cat (inline text box, up to 20 characters) | ✅ Implemented |
 | Fully layered character editor / arbitrary colours | 💡 Future (out of MVP scope) |
 | Accessories (hats, bows, collars) | 💡 Future |
@@ -122,10 +122,10 @@ DeskCat is a desktop pet. Each cat is its own transparent native window showing 
 
 | Feature | Status |
 |---|---|
-| Idle, Sitting, Sleeping, Walking, Petting animations (sprite sheets) | ✅ Implemented |
+| Idle, Sitting, Sleeping, Walking, Petting, Playing animations (sprite sheets) | ✅ Implemented |
 | Random mood changes every 5–12 seconds | ✅ Implemented |
 | Animation timers skip frames while the page is hidden | ✅ Implemented |
-| Stretching and Playing animations | 🗓️ Planned (both marked *optional* in the overview) |
+| Stretching animation | 🗓️ Planned (marked *optional* in the overview) |
 | Distinct cat personalities | 💡 Future |
 
 ### Settings and preferences
@@ -210,10 +210,11 @@ Each skin has one PNG sprite sheet per animation, a horizontal strip of 32×32 f
 | sleeping | 2 | 700 ms | yes |
 | walking | 4 | 140 ms | yes |
 | petting | 4 | 300 ms | no |
+| playing | 4 | 180 ms | yes (stops after 3 s) |
 
 ### Behaviour
 
-Every 5–12 seconds each cat picks a new mood (idle, sitting, sleeping or walking, with idle/sitting/walking weighted a little higher). It does not change mood while it is being petted or walking. **Walking** slides the native window horizontally for about 2.5 seconds, bouncing off the edges of the current monitor.
+Every 5–12 seconds each cat picks a new mood (idle, sitting, sleeping, walking or playing, with idle/sitting/walking weighted a little higher). It does not change mood while it is being petted, walking or playing. When two cat windows come close, both show a short greeting bubble and face each other (sleeping cats stay quiet; each cat greets at most once every 20 seconds). **Walking** slides the native window horizontally for about 2.5 seconds, bouncing off the edges of the current monitor.
 
 ### Dragging and positioning
 
@@ -232,7 +233,7 @@ sequenceDiagram
         end
         S->>F: write once no move for 500 ms
     else released without moving
-        R->>R: play petting animation
+        R->>R: pet (or sometimes play)
     end
 ```
 
@@ -240,7 +241,7 @@ A plain click and a drag share the same press, so DeskCat waits for the pointer 
 
 ### Multiple cats
 
-The Rust `Store` holds the list of cats. Adding a cat creates a new window with the next name and skin from fixed lists (names: Mochi, Miso, Tofu, Boba, Kiki, Nori; skins: orange, black, white, calico, cycling) and places it near the bottom-right of the primary monitor. Removing a cat deletes it from the list and closes its window. The app keeps running with zero cats (the tray remains).
+The Rust `Store` holds the list of cats. Adding a cat creates a new window with the next name and skin from fixed lists (names: Mochi, Miso, Tofu, Boba, Kiki, Nori; skins: orange, black, white, calico, gray, cream, tortoiseshell, cycling) and places it near the bottom-right of the primary monitor. Removing a cat deletes it from the list and closes its window. The app keeps running with zero cats (the tray remains).
 
 ### How settings reach the cat windows
 
@@ -260,7 +261,7 @@ The Rust struct that is saved to disk:
 struct Cat {
     id: String,   // timestamp-based, e.g. "1732432800000"
     name: String, // trimmed, max 20 characters
-    skin: String, // one of: orange, black, white, calico
+    skin: String, // one of the names in SKINS
     x: i32,       // physical pixels
     y: i32,
 }
@@ -269,9 +270,9 @@ struct Cat {
 What the frontend receives and the animation definitions (`src/data/cats.ts`):
 
 ```ts
-export const SKINS = ["orange", "black", "white", "calico"] as const;
+export const SKINS = ["orange", "black", "white", "calico", "gray", "cream", "tortoiseshell"] as const;
 
-export type Anim = "idle" | "sitting" | "sleeping" | "walking" | "petting";
+export type Anim = "idle" | "sitting" | "sleeping" | "walking" | "petting" | "playing";
 
 export interface Cat {
   id: string;
@@ -301,12 +302,15 @@ The current animation is **not** saved: every cat starts in idle after a restart
 | `black` | Dark grey / black |
 | `white` | White |
 | `calico` | White with orange and dark patches |
+| `gray` | Gray tabby |
+| `cream` | Pale cream tabby |
+| `tortoiseshell` | Dark brown with orange mottling, yellow eyes |
 
 All skins share identical frame sizes, frame counts and timings, so a single animation system serves all of them.
 
 ### Interaction behaviour
 
-- **Click** (without dragging): petting animation, then back to idle. Petting a sleeping cat wakes it.
+- **Click** (without dragging): usually petting, sometimes playing with a yarn ball, then back to idle. Petting a sleeping cat wakes it.
 - **Drag**: starts the native window drag after 4 px of movement.
 - **Right-click**: native context menu (see [UI](#user-interface-and-user-experience)).
 
@@ -318,7 +322,7 @@ The sprites are generated by `scripts/gen-sprites.mjs`, not hand-drawn. To add a
 2. Add the same name to `SKINS` in `src/data/cats.ts` and to the `SKINS` constant in `src-tauri/src/lib.rs` (Rust validates skin names).
 3. Run `node scripts/gen-sprites.mjs` to write `public/assets/cats/<name>/*.png`.
 
-Hand-drawn art can be used instead: provide the five sheets with the same frame size (32×32) and frame counts as the table above.
+Hand-drawn art can be used instead: provide the six sheets with the same frame size (32×32) and frame counts as the table above.
 
 ## User Interface and User Experience
 
@@ -339,7 +343,7 @@ This is the **actual** structure (it differs slightly from the structure propose
 ```text
 deskcat/
 ├── .github/workflows/build.yml   # CI: builds the Windows installer, uploads it as an artifact
-├── public/assets/cats/<skin>/    # generated sprite sheets: idle, sitting, sleeping, walking, petting
+├── public/assets/cats/<skin>/    # generated sprite sheets: idle, sitting, sleeping, walking, petting, playing
 ├── scripts/
 │   ├── gen-sprites.mjs           # generates all sprite sheets and icon.png
 │   └── icon.png                  # source image for the app icons
@@ -450,7 +454,7 @@ The original [`PROJECT_OVERVIEW.md`](PROJECT_OVERVIEW.md) is still the statement
 | Context menu | Compact, pixel-styled | Native Windows menu | Fits no other way in a 160×160 window; far less code. |
 | Saved data | Model includes `currentAnimation` | Not saved (always restarts idle) | The overview notes this is acceptable. |
 | Components / hooks | `CatPet`, `CatAnimation`, `CatContextMenu`, `CatSelector`, `SettingsPanel`, three hooks | `App.tsx` plus `data/cats.ts` | Fewer files for a small app. |
-| Animations | Includes optional Stretching and Playing | Not implemented | Marked optional. |
+| Animations | Includes optional Stretching and Playing | Playing implemented; Stretching not | Marked optional. |
 | Sprites | Not specified | Generated by script, not hand-drawn | No art assets existed. |
 
 ## Development Roadmap
@@ -461,7 +465,7 @@ Checked means "present in the code". A check does **not** mean verified on a des
 
 - [x] Tauri 2 + React + TypeScript project
 - [x] Transparent, frameless cat windows
-- [x] Four cat appearances
+- [x] Four cat appearances (now seven)
 - [x] More than one cat on screen
 - [x] Drag cats to new positions
 - [x] Idle, sitting, sleeping, walking and petting animations
@@ -481,7 +485,9 @@ Checked means "present in the code". A check does **not** mean verified on a des
 
 - [ ] Fix whatever fuller desktop testing finds (drag feel, shadows, sprite sharpness at different display scales)
 - [ ] Add screenshots or a short demo GIF to this README
-- [ ] Stretching and Playing animations
+- [x] Playing animation
+- [x] Cats greet each other
+- [ ] Stretching animation
 - [ ] Pixel-styled menus
 - [ ] Automated tests
 - [ ] Code signing for the installer
@@ -503,7 +509,7 @@ Checked means "present in the code". A check does **not** mean verified on a des
 - **Not shown over exclusive-fullscreen games**, even with *Always on top*.
 - **Unsigned installer**: SmartScreen warns on first run.
 - **Native context menu** is not pixel-art styled.
-- **No sound, no settings panel, no Stretching/Playing animation.**
+- **No sound, no settings panel, no Stretching animation.**
 - **Walking is horizontal only** and is limited to the monitor the cat is on.
 - **Multi-monitor and mixed-DPI setups are untested.** Position restore only checks that the cat's centre is on some connected monitor.
 - **A crash within about half a second of a drag** can lose that last move (positions are written after movement settles).
@@ -513,7 +519,7 @@ Checked means "present in the code". A check does **not** mean verified on a des
 
 ## Future Improvements
 
-Ideas only; none are current features and none are scheduled: following the cursor, personalities, cat-to-cat interactions, accessories, importing your own sprites, more breeds, launch on startup, richer multi-monitor handling, a pixel-styled context menu, and a signed installer.
+Ideas only; none are current features and none are scheduled: following the cursor, personalities, richer cat-to-cat interactions, accessories, importing your own sprites, more breeds, launch on startup, richer multi-monitor handling, a pixel-styled context menu, and a signed installer.
 
 ## Contributing
 

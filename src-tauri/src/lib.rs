@@ -11,11 +11,11 @@ use std::{
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Manager, PhysicalPosition, RunEvent, State, WebviewUrl, WebviewWindowBuilder,
+    AppHandle, Emitter, Manager, PhysicalPosition, RunEvent, State, WebviewUrl, WebviewWindowBuilder,
     WindowEvent,
 };
 
-const SKINS: [&str; 4] = ["orange", "black", "white", "calico"];
+const SKINS: [&str; 7] = ["orange", "black", "white", "calico", "gray", "cream", "tortoiseshell"];
 const NAMES: [&str; 6] = ["Mochi", "Miso", "Tofu", "Boba", "Kiki", "Nori"];
 const WIN: f64 = 160.0; // logical px; must match the CSS layout in src/App.css
 
@@ -164,8 +164,23 @@ pub fn run() {
             }
             let app = window.app_handle().clone();
             let st = app.state::<Store>();
-            if let Some(c) = st.save.lock().unwrap().cats.iter_mut().find(|c| c.id == id) {
-                (c.x, c.y) = (p.x, p.y);
+            // cats whose windows are about this close say hello (the frontend rate-limits it)
+            let near = WIN * window.scale_factor().unwrap_or(1.0) * 1.25;
+            let neighbours: Vec<(String, i32)> = {
+                let mut s = st.save.lock().unwrap();
+                if let Some(c) = s.cats.iter_mut().find(|c| c.id == id) {
+                    (c.x, c.y) = (p.x, p.y);
+                }
+                s.cats
+                    .iter()
+                    .filter(|c| c.id != id && f64::from(c.x - p.x).hypot(f64::from(c.y - p.y)) < near)
+                    .map(|c| (c.id.clone(), c.x))
+                    .collect()
+            };
+            for (other, x) in neighbours {
+                // payload: "the other cat is on your left"
+                let _ = app.emit_to(format!("cat-{id}"), "greet", x < p.x);
+                let _ = app.emit_to(format!("cat-{other}"), "greet", p.x < x);
             }
             let g = st.seq.fetch_add(1, Ordering::SeqCst) + 1;
             std::thread::spawn(move || {

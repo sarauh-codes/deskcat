@@ -1,7 +1,7 @@
 // Frame counts / timings must match scripts/gen-sprites.mjs.
-export const SKINS = ["orange", "black", "white", "calico"] as const;
+export const SKINS = ["orange", "black", "white", "calico", "gray", "cream", "tortoiseshell"] as const;
 
-export type Anim = "idle" | "sitting" | "sleeping" | "walking" | "petting";
+export type Anim = "idle" | "sitting" | "sleeping" | "walking" | "petting" | "playing";
 
 export const ANIMS: Record<Anim, { frames: number; ms: number; loop: boolean }> = {
   idle: { frames: 4, ms: 450, loop: true },
@@ -9,6 +9,7 @@ export const ANIMS: Record<Anim, { frames: number; ms: number; loop: boolean }> 
   sleeping: { frames: 2, ms: 700, loop: true },
   walking: { frames: 4, ms: 140, loop: true },
   petting: { frames: 4, ms: 300, loop: false },
+  playing: { frames: 4, ms: 180, loop: true },
 };
 
 export interface Cat {

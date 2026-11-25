@@ -10,7 +10,9 @@ const win = getCurrentWindow();
 const id = win.label.replace(/^cat-/, "");
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 // weighted by repetition
-const MOODS: Anim[] = ["idle", "idle", "sitting", "sitting", "sleeping", "walking", "walking"];
+const MOODS: Anim[] = ["idle", "idle", "sitting", "sitting", "sleeping", "walking", "walking", "playing"];
+const GREETINGS = ["Hi! 👋", "Hello!", "Meow!", "😺", "❤️"];
+const GREET_COOLDOWN = 20_000;
 
 function useFrame(anim: Anim, onEnd: () => void) {
   const [frame, setFrame] = useState(0);
@@ -38,8 +40,38 @@ export default function App() {
   const [anim, setAnim] = useState<Anim>("idle");
   const [flip, setFlip] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [bubble, setBubble] = useState("");
   const press = useRef<{ x: number; y: number } | null>(null);
   const frame = useFrame(anim, () => setAnim("idle"));
+  const animRef = useRef(anim);
+  animRef.current = anim;
+
+  // Rust sends "greet" while another cat is close; the payload says whether that cat is on our left.
+  useEffect(() => {
+    let last = 0;
+    const timers: number[] = [];
+    const unlisten = win.listen<boolean>("greet", ({ payload: otherIsLeft }) => {
+      if (animRef.current === "sleeping" || Date.now() - last < GREET_COOLDOWN) return;
+      last = Date.now();
+      setAnim((a) => (a === "walking" ? "sitting" : a));
+      setFlip(otherIsLeft);
+      // random delay so the two cats don't speak in unison
+      const delay = Math.random() * 900;
+      const text = GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
+      timers.push(window.setTimeout(() => setBubble(text), delay));
+      timers.push(window.setTimeout(() => setBubble(""), delay + 2500));
+    });
+    return () => {
+      timers.forEach(clearTimeout);
+      unlisten.then((stop) => stop());
+    };
+  }, []);
+
+  useEffect(() => {
+    if (anim !== "playing") return;
+    const t = setTimeout(() => setAnim("idle"), 3000);
+    return () => clearTimeout(t);
+  }, [anim]);
 
   useEffect(() => {
     invoke<Cat | null>("get_cat", { id }).then(setCat);
@@ -55,7 +87,8 @@ export default function App() {
     let t: number;
     const next = () => {
       t = window.setTimeout(() => {
-        setAnim((a) => (a === "petting" || a === "walking" ? a : MOODS[Math.floor(Math.random() * MOODS.length)]));
+        const mood = MOODS[Math.floor(Math.random() * MOODS.length)];
+        setAnim((a) => (a === "petting" || a === "walking" || a === "playing" ? a : mood));
         next();
       }, 5000 + Math.random() * 7000);
     };
@@ -98,6 +131,7 @@ export default function App() {
   if (!cat) return null;
 
   const pet = () => setAnim("petting");
+  const play = () => setAnim("playing");
   const changeSkin = (skin: string) => {
     invoke("set_skin", { id, skin });
     setCat({ ...cat, skin });
@@ -126,7 +160,8 @@ export default function App() {
   const onPointerUp = () => {
     if (press.current) {
       press.current = null;
-      pet();
+      // a click is usually a pet, sometimes an invitation to play
+      Math.random() < 0.3 ? play() : pet();
     }
   };
   const onContextMenu = async (e: React.MouseEvent) => {
@@ -134,6 +169,7 @@ export default function App() {
     const menu = await Menu.new({
       items: [
         { text: "Pet", action: pet },
+        { text: "Play", action: play },
         { text: "Rename", action: () => setRenaming(true) },
         {
           text: "Change appearance",
@@ -163,7 +199,7 @@ export default function App() {
           }}
         />
       ) : (
-        <div className="name">{cat.name}</div>
+        <div className={bubble ? "name bubble" : "name"}>{bubble || cat.name}</div>
       )}
       <div
         className="sprite"
